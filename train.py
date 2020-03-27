@@ -90,8 +90,8 @@ def main(args):
     val_size = len(fullset_MNIST) - train_size
     trainset_MNIST, valset = torch.utils.data.random_split(fullset_MNIST, [train_size, val_size])
 
-    trainloader_SVHN = DataLoader(trainset_SVHN, batch_size=16, shuffle=True, num_workers=2)
-    trainloader_MNIST = DataLoader(trainset_MNIST, batch_size=16, shuffle=True, num_workers=2)
+    trainloader_SVHN = DataLoader(trainset_SVHN, batch_size=5, shuffle=True, num_workers=2)
+    trainloader_MNIST = DataLoader(trainset_MNIST, batch_size=5, shuffle=True, num_workers=2)
     valloader = DataLoader(valset, batch_size=1, shuffle=True, num_workers=2)
     testloader = DataLoader(testset, batch_size=1, shuffle=False, num_workers=2)
 
@@ -109,6 +109,7 @@ def main(args):
     optimizer = optim.Adam(lenet0.parameters(), lr=args.lr)
 
     if args.eval_only:
+        loadsave(lenet0, optimizer, args.weights_path[0], mode='load')
         acc =  evaluate_classifier(lenet0, testloader, device)
         print("Accuracy of the network is %d%%\n" %(acc*100))
     else:
@@ -169,7 +170,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--weights-path",
-        default='./weights',
+        default=['./weights'],
         nargs="+",
         help="Path to the weights",
         type=str
@@ -177,7 +178,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--dataset-path",
-        default='./dataset',
+        default=['./dataset'],
         nargs="+",
         help="Path to the dataset",
         type=str

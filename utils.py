@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 import torch
 from torchvision.transforms.functional import _is_pil_image, Image
 
-def loadsave(model, optimizer, name, Root, mode='save'):
+def loadsave(model, optimizer, name, root, mode='save'):
   assert isinstance(model, torch.nn.Module)
   assert isinstance(name, str)
 
   string = name + ".pt"
-  Save_Path = os.path.join(Root, string)
+  Save_Path = os.path.join(root, string)
 
   if (mode == 'save'):
     print("Saving Model")
