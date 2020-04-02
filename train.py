@@ -1,5 +1,6 @@
 import argparse
 import os
+import inspect
 
 import torch
 import torch.nn as nn
@@ -98,18 +99,18 @@ def main(args):
     classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(device)
+    print("Device: " + str(device))
 
     lenet0 = LeNet(device)
     lenet0 = lenet0.to(device)
     print(lenet0)
 
     criterion = nn.CrossEntropyLoss()
-    criterion_VAT = VAT(device, eps=args.eps, xi=args.xi, use_entmin=args.use_entmin)
+    criterion_VAT = VAT(device, eps=args.eps, xi=args.xi, k=args.k, use_entmin=args.use_entmin)
     optimizer = optim.Adam(lenet0.parameters(), lr=args.lr)
 
     if args.eval_only:
-        loadsave(lenet0, optimizer, args.weights_path[0], mode='load')
+        loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
         acc =  evaluate_classifier(lenet0, testloader, device)
         print("Accuracy of the network is %d%%\n" %(acc*100))
     else:
@@ -160,6 +161,14 @@ if __name__ == "__main__":
         nargs='?',
         help="xi value",
         type=float
+    )
+
+    parser.add_argument(
+        "--k",
+        default=1,
+        nargs='?',
+        help="k value",
+        type=int
     )
 
     parser.add_argument(

@@ -45,24 +45,3 @@ def imshow(img):
     npimg = img.numpy()
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
-
-def loadsave(model, name, root, mode='save'):
-  assert isinstance(model, torch.nn.Module)
-  assert isinstance(name, str)
-
-  string = name + ".pt"
-  Save_Path = os.path.join(root, string)
-
-  if (mode == 'save'):
-    print("Saving Model")
-    torch.save({
-        'epoch':                 epoch,
-        'model_state_dict':      model.state_dict(),
-        'optimizer_state_dict':  optimizer.state_dict(),
-    }, Save_Path)
-
-  elif (mode == 'load'):
-    print("Loading Model")
-    check_point = torch.load(Save_Path)
-    model.load_state_dict(check_point['model_state_dict'])
-    optimizer.load_state_dict(check_point['optimizer_state_dict'])
