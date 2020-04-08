@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class VAT(object):
-  def __init__(self, device, eps, xi, k=1, use_entmin=False):
+  def __init__(self, device, eps, xi, k=1, use_entmin=True):
     self.device = device
     self.xi = xi
     self.eps = eps

@@ -1,6 +1,7 @@
 import argparse
 import os
 import inspect
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -37,8 +38,9 @@ def evaluate_classifier(classifier, loader, device):
   return correct/total
 
 def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, alpha, epochs, device, root):
-    Save_Path = os.path.join(root, "LenetVAT.pt")
     best_acc = 0.0
+    supervised_loss = []
+    unsupervised_loss = []
 
     for epoch in range(epochs):  # loop over the dataset multiple times
       dataloader_iterator = iter(trainloader_MNIST)
@@ -66,13 +68,11 @@ def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloa
       vacc =  evaluate_classifier(model, valloader, device)
       print('Epoch: {}, Val_acc: {:.3} Sup_loss: {:.3} Unsup_loss: {:.3}'.format(epoch, vacc, sup_loss.item(), unsup_loss.item()))
 
+      supervised_loss.append(sup_loss.item())
+      unsupervised_loss.appends(unsup_loss.item())
+
       if (vacc > best_acc):
-        print("Saving Model from Epoch %d" %epoch)
-        torch.save({
-            'epoch':                 epoch,
-            'model_state_dict':      model.state_dict(),
-            'optimizer_state_dict':  optimizer.state_dict(),
-        }, Save_Path)
+        loadsave(model, optimizer, "LenetVAT", root=root, mode='save')
         best_acc = vacc
 
 def test(model, testloader, device):
@@ -108,13 +108,32 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
     criterion_VAT = VAT(device, eps=args.eps, xi=args.xi, k=args.k, use_entmin=args.use_entmin)
     optimizer = optim.Adam(lenet0.parameters(), lr=args.lr)
+    # optimizer = optim.SGD(lenet0.parameters(), lr=args.lr, momentum=0.9)
 
     if args.eval_only:
         loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
         acc =  evaluate_classifier(lenet0, testloader, device)
         print("Accuracy of the network is %d%%\n" %(acc*100))
     else:
-        train(lenet0, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, args.alpha, args.epochs, device, args.weights_path[0])
+        supervised_loss, unsupervised_loss = train(lenet0, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, args.alpha, args.epochs, device, args.weights_path[0])
+
+        plt.subplot(2,1,1)
+        plt.plot(supervised_loss)
+        plt.title("Supervised loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.grid(True)
+
+        plt.subplot(2,1,2)
+        plt.plot(unsupervised_loss)
+        plt.title("Unsupervised loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.grid(True)
+
+        plt.show()
+
+        loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
         acc =  evaluate_classifier(lenet0, testloader, device)
         print("Accuracy of the network is %d%%\n" %(acc*100))
 
