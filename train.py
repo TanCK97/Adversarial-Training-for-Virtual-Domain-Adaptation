@@ -15,7 +15,7 @@ from utils import toRGB, loadsave
 from LeNet import LeNet
 from VAT import VAT
 
-def evaluate_classifier(classifier, loader, device):
+def evaluate_classifier(classifier, loader, loader_org, device):
   assert isinstance(classifier, torch.nn.Module)
   assert isinstance(loader, torch.utils.data.DataLoader)
   assert isinstance(device, torch.device)
@@ -32,12 +32,24 @@ def evaluate_classifier(classifier, loader, device):
           pred_y = pred_y.to(torch.device('cpu'))
           correct += (pred_y == y).sum().item()
           total += y.size(0)
+  vat_acc = correct/total
+
+  correct = 0
+  total = 0
+  with torch.no_grad():
+      for x, y in loader_org:
+          prob_y = F.softmax(classifier(x.to(device)), dim=1)
+          pred_y = torch.max(prob_y, dim=1)[1]
+          pred_y = pred_y.to(torch.device('cpu'))
+          correct += (pred_y == y).sum().item()
+          total += y.size(0)
+  org_acc = correct/total
 
   classifier.train()
 
-  return correct/total
+  return vat_acc, org_acc
 
-def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, alpha, epochs, device, root):
+def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, testloader_SVHN, alpha, epochs, device, root):
     best_acc = 0.0
     supervised_loss = []
     unsupervised_loss = []
@@ -65,15 +77,17 @@ def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloa
         optimizer.step()
 
       # Calculating loss and accuracy
-      vacc =  evaluate_classifier(model, valloader, device)
-      print('Epoch: {}, Val_acc: {:.3} Sup_loss: {:.3} Unsup_loss: {:.3}'.format(epoch, vacc, sup_loss.item(), unsup_loss.item()))
+      vat_acc, org_acc =  evaluate_classifier(model, valloader,testloader_SVHN, device)
+      print('Epoch: {}, Val_acc: {:.3} Org_acc: {:.3} Sup_loss: {:.3} Unsup_loss: {:.3}'.format(epoch, vat_acc, org_acc, sup_loss.item(), unsup_loss.item()))
 
       supervised_loss.append(sup_loss.item())
-      unsupervised_loss.appends(unsup_loss.item())
+      unsupervised_loss.append(unsup_loss.item())
 
-      if (vacc > best_acc):
+      if (vat_acc > best_acc):
         loadsave(model, optimizer, "LenetVAT", root=root, mode='save')
-        best_acc = vacc
+        best_acc = vat_acc
+
+    return supervised_loss, unsupervised_loss
 
 def test(model, testloader, device):
     acc = evaluate_classifier(model, testloader, device)
@@ -86,15 +100,18 @@ def main(args):
     trainset_SVHN = torchvision.datasets.SVHN(root=args.dataset_path[0], split='train', download=True, transform=transform_SVHN)
     fullset_MNIST = torchvision.datasets.MNIST(root=args.dataset_path[0], train=True, download=True, transform=transform_MNIST)
     testset = torchvision.datasets.MNIST(root=args.dataset_path[0], train=False, download=True, transform=transform_MNIST)
+    testset_SVHN = torchvision.datasets.SVHN(root=args.dataset_path[0], split='test', download=True, transform=transform_SVHN)
 
     train_size = int(0.8 * len(fullset_MNIST))
     val_size = len(fullset_MNIST) - train_size
     trainset_MNIST, valset = torch.utils.data.random_split(fullset_MNIST, [train_size, val_size])
 
-    trainloader_SVHN = DataLoader(trainset_SVHN, batch_size=5, shuffle=True, num_workers=2)
-    trainloader_MNIST = DataLoader(trainset_MNIST, batch_size=5, shuffle=True, num_workers=2)
+    # Should increase batch size to decrease training time. Batch size for LeNet and VAT datasets can be different, i.e. 32 for LeNet and 128 for VAT
+    trainloader_SVHN = DataLoader(trainset_SVHN, batch_size=32, shuffle=True, num_workers=2)
+    trainloader_MNIST = DataLoader(trainset_MNIST, batch_size=32, shuffle=True, num_workers=2)
     valloader = DataLoader(valset, batch_size=1, shuffle=True, num_workers=2)
     testloader = DataLoader(testset, batch_size=1, shuffle=False, num_workers=2)
+    testloader_SVHN = DataLoader(testset_SVHN, batch_size=1, shuffle=False, num_workers=2)
 
     classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 
@@ -107,15 +124,15 @@ def main(args):
 
     criterion = nn.CrossEntropyLoss()
     criterion_VAT = VAT(device, eps=args.eps, xi=args.xi, k=args.k, use_entmin=args.use_entmin)
-    optimizer = optim.Adam(lenet0.parameters(), lr=args.lr)
+    optimizer = optim.Adam(lenet0.parameters(), lr=args.lr) # Should implement lr scheduler.
     # optimizer = optim.SGD(lenet0.parameters(), lr=args.lr, momentum=0.9)
 
     if args.eval_only:
         loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
-        acc =  evaluate_classifier(lenet0, testloader, device)
+        vat_acc, org_acc =  evaluate_classifier(lenet0, testloader, testloader_SVHN, device)
         print("Accuracy of the network is %d%%\n" %(acc*100))
     else:
-        supervised_loss, unsupervised_loss = train(lenet0, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, args.alpha, args.epochs, device, args.weights_path[0])
+        supervised_loss, unsupervised_loss = train(lenet0, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, testloader_SVHN, args.alpha, args.epochs, device, args.weights_path[0])
 
         plt.subplot(2,1,1)
         plt.plot(supervised_loss)
@@ -131,11 +148,12 @@ def main(args):
         plt.ylabel("Loss")
         plt.grid(True)
 
+        plt.ion()
         plt.show()
 
         loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
-        acc =  evaluate_classifier(lenet0, testloader, device)
-        print("Accuracy of the network is %d%%\n" %(acc*100))
+        vat_acc, org_acc =  evaluate_classifier(lenet0, testloader, testloader_SVHN, device)
+        print("Accuracy of the network on MNIST is %d%%\nAccuracy of the network on SVHN is %d%%\n" %(vat_acc*100, org_acc*100))
 
 
 if __name__ == "__main__":
@@ -144,7 +162,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--lr",
-        default=0.0001,
+        default=0.0001, # Original VAT paper used ADAM with lr = 0.001
         nargs='?',
         help="Learning rate",
         type=float
@@ -152,7 +170,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--epochs",
-        default=20,
+        default=20, # Might have to increase, VAT paper used 84 to train SVHN
         nargs='?',
         help="Number of epochs",
         type=int
@@ -160,7 +178,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--alpha",
-        default = 2.0,
+        default = 1.0, # Research shows that for small values of eps changing alpha has little effect, so default is 1.0
         nargs='?',
         help="Alpha value",
         type=float
@@ -168,7 +186,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--eps",
-        default=4.5,
+        default=4.5, # Try within range of [0.05, 10.0]
         nargs='?',
         help="Epsilon value",
         type=float
@@ -176,7 +194,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--xi",
-        default=100.0,
+        default=10.0, # 100 might be too much, so try original default value of 10.0. Can also try within range [1,10] but only as last resort
         nargs='?',
         help="xi value",
         type=float
@@ -184,7 +202,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--k",
-        default=1,
+        default=1, # Can increase this to potentially improve results, but training time will linearly increase and results might not change much
         nargs='?',
         help="k value",
         type=int
