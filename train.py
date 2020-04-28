@@ -2,6 +2,7 @@ import argparse
 import os
 import inspect
 import matplotlib.pyplot as plt
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -18,6 +19,7 @@ from VAT import VAT
 def evaluate_classifier(classifier, loader, loader_org, device):
   assert isinstance(classifier, torch.nn.Module)
   assert isinstance(loader, torch.utils.data.DataLoader)
+  assert isinstance(loader_org, torch.utils.data.DataLoader)
   assert isinstance(device, torch.device)
 
   classifier.eval()
@@ -48,6 +50,50 @@ def evaluate_classifier(classifier, loader, loader_org, device):
   classifier.train()
 
   return vat_acc, org_acc
+
+def barchartplot(classifier, loader, device):
+    assert isinstance(classifier, torch.nn.Module)
+    assert isinstance(loader, torch.utils.data.DataLoader)
+    assert isinstance(device, torch.device)
+
+    classifier.eval()
+
+            #0,1,2,3,4,5,6,7,8,9
+    data = [[0,0,0,0,0,0,0,0,0,0], # 0
+            [0,0,0,0,0,0,0,0,0,0], # 1
+            [0,0,0,0,0,0,0,0,0,0], # 2
+            [0,0,0,0,0,0,0,0,0,0], # 3
+            [0,0,0,0,0,0,0,0,0,0], # 4
+            [0,0,0,0,0,0,0,0,0,0], # 5
+            [0,0,0,0,0,0,0,0,0,0], # 6
+            [0,0,0,0,0,0,0,0,0,0], # 7
+            [0,0,0,0,0,0,0,0,0,0], # 8
+            [0,0,0,0,0,0,0,0,0,0]] # 9
+
+    with torch.no_grad():
+        for x, y in loader:
+            prob_y = F.softmax(classifier(x.to(device)), dim=1)
+            pred_y = torch.max(prob_y, dim=1)[1]
+            pred_y = pred_y.to(torch.device('cpu'))
+            data[y][pred_y] += 1
+
+    X = np.arange(10)
+    ax = plt.subplot(111)
+
+    ax.bar(X + 0.00, data[0], color='red', width=0.1, align='edge')
+    ax.bar(X + 0.10, data[1], color='blue', width=0.1, align='edge')
+    ax.bar(X + 0.20, data[2], color='green', width=0.1, align='edge')
+    ax.bar(X + 0.30, data[3], color='yellow', width=0.1, align='edge')
+    ax.bar(X + 0.40, data[4], color='purple', width=0.1, align='edge')
+    ax.bar(X + 0.50, data[5], color='violet', width=0.1, align='edge')
+    ax.bar(X + 0.60, data[6], color='gray', width=0.1, align='edge')
+    ax.bar(X + 0.70, data[7], color='brown', width=0.1, align='edge')
+    ax.bar(X + 0.80, data[8], color='pink', width=0.1, align='edge')
+    ax.bar(X + 0.90, data[9], color='cyan', width=0.1, align='edge')
+
+    plt.legend(['0','1','2','3','4','5','6','7','8','9'])
+    plt.xticks(np.arange(10), ['0','1','2','3','4','5','6','7','8','9'])
+    plt.show()
 
 def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, testloader_SVHN, alpha, epochs, device, root):
     best_acc = 0.0
@@ -89,10 +135,6 @@ def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloa
 
     return supervised_loss, unsupervised_loss
 
-def test(model, testloader, device):
-    acc = evaluate_classifier(model, testloader, device)
-    print('Accuracy of the network is %d%%\n' %(100*acc))
-
 def main(args):
     transform_SVHN = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     transform_MNIST = transforms.Compose([toRGB(), transforms.Resize(32), transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -129,8 +171,7 @@ def main(args):
 
     if args.eval_only:
         loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
-        vat_acc, org_acc =  evaluate_classifier(lenet0, testloader, testloader_SVHN, device)
-        print("Accuracy of the network is %d%%\n" %(acc*100))
+
     else:
         supervised_loss, unsupervised_loss = train(lenet0, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, testloader_SVHN, args.alpha, args.epochs, device, args.weights_path[0])
 
@@ -148,12 +189,14 @@ def main(args):
         plt.ylabel("Loss")
         plt.grid(True)
 
-        plt.ion()
         plt.show()
 
         loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
-        vat_acc, org_acc =  evaluate_classifier(lenet0, testloader, testloader_SVHN, device)
-        print("Accuracy of the network on MNIST is %d%%\nAccuracy of the network on SVHN is %d%%\n" %(vat_acc*100, org_acc*100))
+
+    vat_acc, org_acc =  evaluate_classifier(lenet0, testloader, testloader_SVHN, device)
+    print("Accuracy of the network on MNIST is %d%%\nAccuracy of the network on SVHN is %d%%\n" %(vat_acc*100, org_acc*100))
+
+    barchartplot(lenet0, testloader, device)
 
 
 if __name__ == "__main__":
