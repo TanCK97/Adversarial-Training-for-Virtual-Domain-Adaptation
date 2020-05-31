@@ -12,88 +12,9 @@ from torch.utils.data import DataLoader
 import torchvision
 import torchvision.transforms as transforms
 
-from utils import toRGB, loadsave
+from utils import toRGB, loadsave, evaluate_classifier, loss_plot, barchartplot
 from LeNet import LeNet
 from VAT import VAT
-
-def evaluate_classifier(classifier, loader, loader_org, device):
-  assert isinstance(classifier, torch.nn.Module)
-  assert isinstance(loader, torch.utils.data.DataLoader)
-  assert isinstance(loader_org, torch.utils.data.DataLoader)
-  assert isinstance(device, torch.device)
-
-  classifier.eval()
-
-  # n_err = 0
-  correct = 0
-  total = 0
-  with torch.no_grad():
-      for x, y in loader:
-          prob_y = F.softmax(classifier(x.to(device)), dim=1)
-          pred_y = torch.max(prob_y, dim=1)[1]
-          pred_y = pred_y.to(torch.device('cpu'))
-          correct += (pred_y == y).sum().item()
-          total += y.size(0)
-  vat_acc = correct/total
-
-  correct = 0
-  total = 0
-  with torch.no_grad():
-      for x, y in loader_org:
-          prob_y = F.softmax(classifier(x.to(device)), dim=1)
-          pred_y = torch.max(prob_y, dim=1)[1]
-          pred_y = pred_y.to(torch.device('cpu'))
-          correct += (pred_y == y).sum().item()
-          total += y.size(0)
-  org_acc = correct/total
-
-  classifier.train()
-
-  return vat_acc, org_acc
-
-def barchartplot(classifier, loader, device):
-    assert isinstance(classifier, torch.nn.Module)
-    assert isinstance(loader, torch.utils.data.DataLoader)
-    assert isinstance(device, torch.device)
-
-    classifier.eval()
-
-            #0,1,2,3,4,5,6,7,8,9
-    data = [[0,0,0,0,0,0,0,0,0,0], # 0
-            [0,0,0,0,0,0,0,0,0,0], # 1
-            [0,0,0,0,0,0,0,0,0,0], # 2
-            [0,0,0,0,0,0,0,0,0,0], # 3
-            [0,0,0,0,0,0,0,0,0,0], # 4
-            [0,0,0,0,0,0,0,0,0,0], # 5
-            [0,0,0,0,0,0,0,0,0,0], # 6
-            [0,0,0,0,0,0,0,0,0,0], # 7
-            [0,0,0,0,0,0,0,0,0,0], # 8
-            [0,0,0,0,0,0,0,0,0,0]] # 9
-
-    with torch.no_grad():
-        for x, y in loader:
-            prob_y = F.softmax(classifier(x.to(device)), dim=1)
-            pred_y = torch.max(prob_y, dim=1)[1]
-            pred_y = pred_y.to(torch.device('cpu'))
-            data[y][pred_y] += 1
-
-    X = np.arange(10)
-    ax = plt.subplot(111)
-
-    ax.bar(X + 0.00, data[0], color='red', width=0.1, align='edge')
-    ax.bar(X + 0.10, data[1], color='blue', width=0.1, align='edge')
-    ax.bar(X + 0.20, data[2], color='green', width=0.1, align='edge')
-    ax.bar(X + 0.30, data[3], color='yellow', width=0.1, align='edge')
-    ax.bar(X + 0.40, data[4], color='purple', width=0.1, align='edge')
-    ax.bar(X + 0.50, data[5], color='violet', width=0.1, align='edge')
-    ax.bar(X + 0.60, data[6], color='gray', width=0.1, align='edge')
-    ax.bar(X + 0.70, data[7], color='brown', width=0.1, align='edge')
-    ax.bar(X + 0.80, data[8], color='pink', width=0.1, align='edge')
-    ax.bar(X + 0.90, data[9], color='cyan', width=0.1, align='edge')
-
-    plt.legend(['0','1','2','3','4','5','6','7','8','9'])
-    plt.xticks(np.arange(10), ['0','1','2','3','4','5','6','7','8','9'])
-    plt.show()
 
 def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, testloader_SVHN, alpha, epochs, device, root):
     best_acc = 0.0
@@ -155,8 +76,6 @@ def main(args):
     testloader = DataLoader(testset, batch_size=1, shuffle=False, num_workers=2)
     testloader_SVHN = DataLoader(testset_SVHN, batch_size=1, shuffle=False, num_workers=2)
 
-    classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device: " + str(device))
 
@@ -174,24 +93,10 @@ def main(args):
 
     else:
         supervised_loss, unsupervised_loss = train(lenet0, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, testloader_SVHN, args.alpha, args.epochs, device, args.weights_path[0])
-
-        plt.subplot(2,1,1)
-        plt.plot(supervised_loss)
-        plt.title("Supervised loss")
-        plt.xlabel("Epochs")
-        plt.ylabel("Loss")
-        plt.grid(True)
-
-        plt.subplot(2,1,2)
-        plt.plot(unsupervised_loss)
-        plt.title("Unsupervised loss")
-        plt.xlabel("Epochs")
-        plt.ylabel("Loss")
-        plt.grid(True)
-
-        plt.show()
-
+        loss_plot(supervised_loss, unsupervised_loss)
         loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
+
+        # loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
 
     vat_acc, org_acc =  evaluate_classifier(lenet0, testloader, testloader_SVHN, device)
     print("Accuracy of the network on MNIST is %d%%\nAccuracy of the network on SVHN is %d%%\n" %(vat_acc*100, org_acc*100))
