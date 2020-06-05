@@ -20,8 +20,9 @@ class VAT(object):
       d = d.to(self.device)
 
       for ip in range(self.k):
+          d.requires_grad = True
           X_hat = X + d * self.xi
-          X_hat.requires_grad = True
+          # X_hat.requires_grad = True
           logits_hat = model(X_hat)
           prob_logits_hat = F.log_softmax(logits_hat, dim=1)
 
@@ -29,7 +30,8 @@ class VAT(object):
           adv_distance = self.kl_div(prob_logits_hat, prob_logits)
           adv_distance.backward()
 
-          d = self.l2_normalize(X_hat.grad).to(self.device)
+          # d = self.l2_normalize(X_hat.grad).to(self.device)
+          d = self.l2_normalize(d.grad).to(self.device)
           model.zero_grad()
 
       r_adv = d * self.eps
