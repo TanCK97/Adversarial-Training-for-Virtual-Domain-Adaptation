@@ -22,38 +22,39 @@ def train(model, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloa
     unsupervised_loss = []
 
     for epoch in range(epochs):  # loop over the dataset multiple times
-      dataloader_iterator = iter(trainloader_MNIST)
+        dataloader_iterator = iter(trainloader_MNIST)
 
-      for i, data in enumerate(trainloader_SVHN):
-        try:
-            data2 = next(dataloader_iterator)
-        except StopIteration:
-          dataloader_iterator = iter(trainloader_MNIST)
-          data2 = next(dataloader_iterator)
+        for i, data in enumerate(trainloader_SVHN):
+            try:
+                data2 = next(dataloader_iterator)
+            except StopIteration:
+                dataloader_iterator = iter(trainloader_MNIST)
+                data2 = next(dataloader_iterator)
 
-        l_x, l_y = data[0].to(device), data[1].to(device)
-        ul_x, ul_y = data2[0].to(device), data2[1].to(device)
-        optimizer.zero_grad()
+            l_x, l_y = data[0].to(device), data[1].to(device)
+            ul_x, ul_y = data2[0].to(device), data2[1].to(device)
+            optimizer.zero_grad()
 
-        outputs = model(l_x)
-        sup_loss = criterion(outputs, l_y)
-        unsup_loss = alpha * criterion_VAT(model, ul_x)
-        loss = sup_loss + unsup_loss
+            outputs = model(l_x)
+            sup_loss = criterion(outputs, l_y)
+            unsup_loss = alpha * criterion_VAT(model, ul_x)
+            loss = sup_loss + unsup_loss
 
-        loss.backward()
-        optimizer.step()
+            loss.backward()
+            optimizer.step()
 
-      # Calculating loss and accuracy
-      vat_acc, org_acc =  evaluate_classifier(model, valloader,testloader_SVHN, device)
-      print('Epoch: {}, Val_acc: {:.3} Org_acc: {:.3} Sup_loss: {:.3} Unsup_loss: {:.3}'.format(epoch, vat_acc, org_acc, sup_loss.item(), unsup_loss.item()))
+        # Calculating loss and accuracy
+        vat_acc, org_acc =  evaluate_classifier(model, valloader,testloader_SVHN, device)
+        print('Epoch: {}, Val_acc: {:.3} Org_acc: {:.3} Sup_loss: {:.3} Unsup_loss: {:.3}'.format(epoch, vat_acc, org_acc, sup_loss.item(), unsup_loss.item()))
 
-      supervised_loss.append(sup_loss.item())
-      unsupervised_loss.append(unsup_loss.item())
+        supervised_loss.append(sup_loss.item())
+        unsupervised_loss.append(unsup_loss.item())
 
-      if (vat_acc > best_acc):
-        loadsave(model, optimizer, "LenetVAT", root=root, mode='save')
-        best_acc = vat_acc
+        # if (vat_acc > best_acc):
+        #   loadsave(model, optimizer, "LenetVAT", root=root, mode='save')
+        #   best_acc = vat_acc
 
+    loadsave(model, optimizer, "LenetVAT", root=root, mode='save')
     return supervised_loss, unsupervised_loss
 
 def main(args):
@@ -94,9 +95,6 @@ def main(args):
     else:
         supervised_loss, unsupervised_loss = train(lenet0, optimizer, criterion, criterion_VAT, trainloader_SVHN, trainloader_MNIST, valloader, testloader_SVHN, args.alpha, args.epochs, device, args.weights_path[0])
         loss_plot(supervised_loss, unsupervised_loss)
-        loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
-
-        # loadsave(lenet0, optimizer, "LenetVAT", root=args.weights_path[0], mode='load')
 
     vat_acc, org_acc =  evaluate_classifier(lenet0, testloader, testloader_SVHN, device)
     print("Accuracy of the network on MNIST is %d%%\nAccuracy of the network on SVHN is %d%%\n" %(vat_acc*100, org_acc*100))

@@ -141,20 +141,7 @@ def barchartplot(classifier, loader, device):
 
 
     nmi = normalized_mutual_info_score(cls_vec, num_vec)
-
-    # nmi = []
-    # num_vec = [[] for i in range(10)]
-    #
-    # for cls in range(10):
-    #     for num in range(10):
-    #         num_vec[cls].extend([num]*data[num][cls])
-    #
-    #
-    #     nmi.append(normalized_mutual_info_score([cls]*len(num_vec[cls]), num_vec[cls]))
-
-    # print(num_vec)
-    # print('[%s]' % ', '.join(map(str, nmi)))
-    print(nmi)
+    print("NMI: " + str(nmi))
 
 def loss_plot(supervised_loss, unsupervised_loss):
     plt.subplot(2,1,1)
