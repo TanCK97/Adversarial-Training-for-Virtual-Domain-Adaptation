@@ -1,4 +1,4 @@
-# Adversarial-Training-for-Virtual-Domain-Adaptation
+# Adversarial Training for Virtual Domain Adaptation
 This repository contains an implementation of LeNet and Virtual Adversarial Training (VAT) for domain adaptation. Currently only supports SVHN to MNIST
 
 ## Dependencies
