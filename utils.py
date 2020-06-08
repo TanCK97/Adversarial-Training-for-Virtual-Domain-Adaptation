@@ -128,6 +128,8 @@ def barchartplot(classifier, loader, device):
 
     plt.legend(['0','1','2','3','4','5','6','7','8','9'])
     plt.xticks(np.arange(10), ['0','1','2','3','4','5','6','7','8','9'])
+    plt.xlabel("Class labels")
+    plt.ylabel("Frequency")
     plt.show()
 
     # Calculating the NMI
